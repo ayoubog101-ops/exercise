@@ -1,0 +1,43 @@
+name: CI/CD
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: |
+          docker build -t demo-v1 ./app/v1
+          docker build -t demo-v2 ./app/v2
+          docker build -t demo-nginx ./nginx
+
+      - name: Start the stack
+        run: docker compose up -d --build --wait
+
+      - name: Smoke test v1 and v2 directly
+        run: |
+          curl -fsS http://localhost:3001/health
+          curl -fsS http://localhost:3002/health
+
+      - name: Smoke test traffic through Nginx
+        run: |
+          chmod +x test-traffic.sh
+          ./test-traffic.sh 100
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down
+
+  # Extend this job to push images to a registry and deploy to the cloud.
+  # Example: log in to GHCR, push demo-v1 and demo-v2, then call your host's deploy API.
